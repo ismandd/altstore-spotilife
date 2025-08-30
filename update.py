@@ -1,52 +1,107 @@
 import os
+import json
 import re
-from telethon import TelegramClient, events
+from telethon import TelegramClient
 from github import Github
 
-# Your Telegram API credentials from the app configuration
-API_ID = 27090201
-API_HASH = 'acc2efd321fdff9e45eb84a7c5d283d0'
-CHANNEL = 'SpotilifeIPAs'
+# -----------------------------
+# Environment variables
+# -----------------------------
+api_id = int(os.getenv("TELEGRAM_API_ID"))
+api_hash = os.getenv("TELEGRAM_API_HASH")
+bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+channel = os.getenv("TELEGRAM_CHANNEL", "SpotilifeIPAs")
+github_repo = os.getenv("GITHUB_REPOSITORY")  # e.g., username/altstore-spotilife
 
+apps_json_path = "apps.json"
+
+# -----------------------------
 # Initialize Telegram client
-client = TelegramClient('session_name', API_ID, API_HASH)
+# -----------------------------
+client = TelegramClient('bot', api_id, api_hash)
+client.connect()
 
+if not client.is_user_authorized():
+    client.start(bot_token=bot_token)
+
+# -----------------------------
+# Initialize GitHub client
+# -----------------------------
+gh = Github(os.getenv("GITHUB_TOKEN"))
+repo = gh.get_repo(github_repo)
+
+# -----------------------------
+# Main async function
+# -----------------------------
 async def main():
-    # Get the latest message from the channel
-    async for message in client.iter_messages(CHANNEL, limit=1):
-        if message.text:
-            # Extract IPA link using regex
-            ipa_links = re.findall(r'https?://[^\s]+\.ipa', message.text)
-            if ipa_links:
-                latest_ipa = ipa_links[0]
-                
-                # Update GitHub repository description
-                g = Github(os.environ['GITHUB_TOKEN'])
-                repo = g.get_repo('your-username/altstore-spotilife')  # Replace with your repo
-                repo.edit(description=f"Latest Spotilife IPA: {latest_ipa}")
-                
-                print(f"Updated repository with latest IPA: {latest_ipa}")
-                return
-    
-    print("No IPA link found in the latest message")
+    print("✅ Bot logged in successfully")
 
-# Run the script
-if __name__ == '__main__':
-    import asyncio
-    
-    # Use bot token if available, otherwise use existing session
-    bot_token = os.environ.get('TELEGRAM_BOT_TOKEN')
-    
-    if bot_token:
-        # Use bot authentication (recommended for CI/CD)
-        with client:
-            client.loop.run_until_complete(main())
-    else:
-        # Try to use existing session file
-        try:
-            with client:
-                client.loop.run_until_complete(main())
-        except Exception as e:
-            print(f"Error: {e}")
-            print("Please set TELEGRAM_BOT_TOKEN environment variable")
-            exit(1)
+    # Fetch last 20 messages from the channel
+    async for msg in client.iter_messages(channel, limit=20):
+        if msg.file and msg.file.name.endswith(".ipa"):
+            filename = msg.file.name
+            version_match = re.search(r"(\d+\.\d+\.\d+)", filename)
+            version = version_match.group(1) if version_match else "1.0"
+            local_path = f"./{filename}"
+
+            # Download IPA
+            print(f"📥 Downloading {filename} ...")
+            await msg.download_media(file=local_path)
+
+            # Upload to GitHub Release
+            release_tag = f"v{version}"
+            try:
+                release = repo.get_release(release_tag)
+            except:
+                release = repo.create_git_release(
+                    tag=release_tag,
+                    name=f"Spotilife {version}",
+                    message=f"Auto release for Spotilife v{version}"
+                )
+
+            # Delete old assets if any
+            for asset in release.get_assets():
+                asset.delete_asset()
+
+            release.upload_asset(local_path)
+            ipa_url = f"https://github.com/{repo.full_name}/releases/download/{release_tag}/{filename}"
+            print(f"✅ Uploaded {filename} to GitHub Releases")
+
+            # Update apps.json
+            if os.path.exists(apps_json_path):
+                with open(apps_json_path, "r") as f:
+                    data = json.load(f)
+            else:
+                data = {
+                    "name": "Spotilife Repo",
+                    "identifier": "com.spotilife.repo",
+                    "apps": []
+                }
+
+            app_entry = {
+                "name": "EeveeSpotify",
+                "bundleIdentifier": "com.spotify.client",
+                "developerName": "Spotilife",
+                "subtitle": "Spotify with Spotilife patches",
+                "version": version,
+                "versionDate": msg.date.strftime("%Y-%m-%d"),
+                "versionDescription": f"Auto-updated to {version}",
+                "downloadURL": ipa_url,
+                "localizedDescription": "Modified Spotify IPA.",
+                "iconURL": "https://upload.wikimedia.org/wikipedia/commons/1/19/Spotify_logo_without_text.svg",
+                "tintColor": "1DB954",
+                "screenshotURLs": []
+            }
+
+            data["apps"] = [app_entry]
+
+            with open(apps_json_path, "w") as f:
+                json.dump(data, f, indent=2)
+
+            print("✅ apps.json updated")
+            break  # Only process the latest IPA
+
+# -----------------------------
+# Run the async main function
+# -----------------------------
+client.loop.run_until_complete(main())
