@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import asyncio
 from telethon import TelegramClient
 from github import Github
 
@@ -19,10 +20,6 @@ apps_json_path = "apps.json"
 # Initialize Telegram client
 # -----------------------------
 client = TelegramClient('bot', api_id, api_hash)
-client.connect()
-
-if not client.is_user_authorized():
-    client.start(bot_token=bot_token)
 
 # -----------------------------
 # Initialize GitHub client
@@ -34,9 +31,12 @@ repo = gh.get_repo(github_repo)
 # Main async function
 # -----------------------------
 async def main():
+    await client.connect()
+    if not await client.is_user_authorized():
+        await client.start(bot_token=bot_token)
     print("✅ Bot logged in successfully")
 
-    # Fetch last 20 messages from the channel
+    # Fetch the latest IPA message
     async for msg in client.iter_messages(channel, limit=20):
         if msg.file and msg.file.name.endswith(".ipa"):
             filename = msg.file.name
@@ -101,7 +101,9 @@ async def main():
             print("✅ apps.json updated")
             break  # Only process the latest IPA
 
+    await client.disconnect()
+
 # -----------------------------
 # Run the async main function
 # -----------------------------
-client.loop.run_until_complete(main())
+asyncio.run(main())
