@@ -1,71 +1,31 @@
-import os, json, re
-from telethon import TelegramClient
-from github import Github
-
-# --- Telegram API setup ---
-api_id = int(os.getenv("TELEGRAM_API_ID"))
-api_hash = os.getenv("TELEGRAM_API_HASH")
-channel = os.getenv("TELEGRAM_CHANNEL")  # e.g., SpotilifeIPAs
-
-client = TelegramClient("session", api_id, api_hash)
-
-# --- GitHub setup ---
-gh = Github(os.getenv("GITHUB_TOKEN"))
-repo = gh.get_repo(os.getenv("GITHUB_REPOSITORY"))
-
-async def main():
-    await client.start()
-    
-    async for msg in client.iter_messages(channel, limit=20):
-        if msg.file and msg.file.name.endswith(".ipa"):
-            filename = msg.file.name
-            version_match = re.search(r"(\d+\.\d+\.\d+)", filename)
-            version = version_match.group(1) if version_match else "1.0"
-            path = f"./{filename}"
-
-            print(f"Downloading {filename} ...")
-            await msg.download_media(file=path)
-
-            # Upload to GitHub Release
-            release_tag = f"v{version}"
-            try:
-                release = repo.get_release(release_tag)
-            except:
-                release = repo.create_git_release(release_tag, f"Spotilife {version}", "Auto release")
-
-            # Delete old assets
-            for asset in release.get_assets():
-                asset.delete_asset()
-            
-            release.upload_asset(path)
-
-            # Update apps.json
-            with open("apps.json") as f:
-                data = json.load(f)
-            
-            ipa_url = f"https://github.com/{repo.full_name}/releases/download/{release_tag}/{filename}"
-            app_entry = {
-                "name": "EeveeSpotify",
-                "bundleIdentifier": "com.spotify.client",
-                "developerName": "Spotilife",
-                "subtitle": "Spotify with Spotilife patches",
-                "version": version,
-                "versionDate": msg.date.strftime("%Y-%m-%d"),
-                "versionDescription": f"Auto-updated to {version}",
-                "downloadURL": ipa_url,
-                "localizedDescription": "Modified Spotify IPA.",
-                "iconURL": "https://upload.wikimedia.org/wikipedia/commons/1/19/Spotify_logo_without_text.svg",
-                "tintColor": "1DB954",
-                "screenshotURLs": []
-            }
-
-            data["apps"] = [app_entry]
-
-            with open("apps.json", "w") as f:
-                json.dump(data, f, indent=2)
-
-            print("✅ Updated apps.json")
-            break
-
-with client:
-    client.loop.run_until_complete(main())
+Run python update.py
+  python update.py
+  shell: /usr/bin/bash -e {0}
+  env:
+    pythonLocation: /opt/hostedtoolcache/Python/3.10.18/x64
+    PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.10.18/x64/lib/pkgconfig
+    Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+    Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+    Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+    LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.10.18/x64/lib
+    TELEGRAM_API_ID: ***
+    TELEGRAM_API_HASH: ***
+    TELEGRAM_CHANNEL: SpotilifeIPAs
+    GITHUB_TOKEN: ***
+Traceback (most recent call last):
+  File "/home/runner/work/altstore-spotilife/altstore-spotilife/update.py", line 70, in <module>
+    with client:
+  File "/opt/hostedtoolcache/Python/3.10.18/x64/lib/python3.10/site-packages/telethon/helpers.py", line 219, in _sync_enter
+    return loop.run_until_complete(self.__aenter__())
+  File "/opt/hostedtoolcache/Python/3.10.18/x64/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/opt/hostedtoolcache/Python/3.10.18/x64/lib/python3.10/site-packages/telethon/client/auth.py", line 669, in __aenter__
+    return await self.start()
+  File "/opt/hostedtoolcache/Python/3.10.18/x64/lib/python3.10/site-packages/telethon/client/auth.py", line 167, in _start
+    value = phone()
+  File "/opt/hostedtoolcache/Python/3.10.18/x64/lib/python3.10/site-packages/telethon/client/auth.py", line 22, in <lambda>
+    phone: typing.Union[typing.Callable[[], str], str] = lambda: input('Please enter your phone (or bot token): '),
+EOFError: EOF when reading a line
+/home/runner/work/_temp/dac6d2f2-af35-420e-a5d8-be6060a112de.sh: line 1:  2255 Segmentation fault      (core dumped) python update.py
+Please enter your phone (or bot token): 
+Error: Process completed with exit code 139.
