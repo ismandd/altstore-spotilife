@@ -13,10 +13,12 @@ bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
 channel = os.getenv("TELEGRAM_CHANNEL", "SpotilifeIPAs")
 github_repo = os.getenv("GITHUB_REPOSITORY")  # e.g., username/altstore-spotilife
 
+apps_json_path = "apps.json"
+
 # -----------------------------
-# Initialize Telegram client
+# Initialize Telegram client (no .start() here)
 # -----------------------------
-client = TelegramClient('bot', api_id, api_hash).start(bot_token=bot_token)
+client = TelegramClient('bot', api_id, api_hash)
 
 # -----------------------------
 # Initialize GitHub client
@@ -24,13 +26,13 @@ client = TelegramClient('bot', api_id, api_hash).start(bot_token=bot_token)
 gh = Github(os.getenv("GITHUB_TOKEN"))
 repo = gh.get_repo(github_repo)
 
-apps_json_path = "apps.json"
-
 # -----------------------------
 # Main async function
 # -----------------------------
 async def main():
-    print("✅ Bot connected to Telegram")
+    # Bot login (non-interactive)
+    await client.start(bot_token=bot_token)
+    print("✅ Bot logged in successfully")
 
     # Fetch last 20 messages from the channel
     async for msg in client.iter_messages(channel, limit=20):
