@@ -1,22 +1,21 @@
-import os, json, re, requests
+import os, json, re
 from telethon import TelegramClient
 from github import Github
 
-# --- Telegram Setup ---
+# --- Telegram API setup ---
 api_id = int(os.getenv("TELEGRAM_API_ID"))
 api_hash = os.getenv("TELEGRAM_API_HASH")
-channel = os.getenv("TELEGRAM_CHANNEL")
+channel = os.getenv("TELEGRAM_CHANNEL")  # e.g., SpotilifeIPAs
 
 client = TelegramClient("session", api_id, api_hash)
 
-# --- GitHub Setup ---
+# --- GitHub setup ---
 gh = Github(os.getenv("GITHUB_TOKEN"))
 repo = gh.get_repo(os.getenv("GITHUB_REPOSITORY"))
 
 async def main():
     await client.start()
-
-    # Get last message with .ipa
+    
     async for msg in client.iter_messages(channel, limit=20):
         if msg.file and msg.file.name.endswith(".ipa"):
             filename = msg.file.name
@@ -37,13 +36,13 @@ async def main():
             # Delete old assets
             for asset in release.get_assets():
                 asset.delete_asset()
-
+            
             release.upload_asset(path)
 
             # Update apps.json
             with open("apps.json") as f:
                 data = json.load(f)
-
+            
             ipa_url = f"https://github.com/{repo.full_name}/releases/download/{release_tag}/{filename}"
             app_entry = {
                 "name": "EeveeSpotify",
